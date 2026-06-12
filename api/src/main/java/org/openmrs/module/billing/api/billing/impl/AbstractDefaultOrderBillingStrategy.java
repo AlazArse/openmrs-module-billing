@@ -233,34 +233,3 @@ public abstract class AbstractDefaultOrderBillingStrategy extends AbstractOrderB
 		return variables;
 	}
 }
-			}
-		}
-		
-		return false;
-	}
-	
-	protected Map<String, Object> buildExemptionVariables(Order order) {
-		Map<String, Object> variables = new HashMap<>();
-		
-		Patient patient = order.getPatient();
-		variables.put("patient", patient);
-		if (patient != null) {
-			variables.put("patientAge", patient.getAge());
-		}
-		
-		Map<String, Object> orderData = new HashMap<>();
-		orderData.put("uuid", order.getUuid());
-		if (order.getConcept() != null) {
-			orderData.put("conceptId", order.getConcept().getConceptId());
-		}
-		variables.put("order", orderData);
-		
-		List<PatientProgram> programs = programWorkflowService.getPatientPrograms(patient, null, null, null, new Date(),
-		    null, false);
-		List<String> activePrograms = programs.stream().filter(PatientProgram::getActive)
-		        .map(pp -> pp.getProgram().getName()).collect(Collectors.toList());
-		variables.put("activePrograms", activePrograms);
-		
-		return variables;
-	}
-}
