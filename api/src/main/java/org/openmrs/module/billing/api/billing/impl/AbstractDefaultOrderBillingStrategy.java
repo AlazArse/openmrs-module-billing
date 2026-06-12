@@ -160,11 +160,9 @@ public abstract class AbstractDefaultOrderBillingStrategy extends AbstractOrderB
 			bill.setVisit(order.getEncounter().getVisit());
 		}
 		
-		// Save line item first to ensure it gets a database ID before association with the bill.
-		// This prevents Hibernate from treating the line item as an orphan during cascade operations,
-		// which was causing line items to be randomly cleared/deleted after order placement.
-		lineItem = billLineItemService.saveBillLineItem(lineItem);
-		
+		// Add the line item to the bill first to establish the relationship.
+		// This ensures Hibernate recognizes the line item as part of the bill aggregate root
+		// and will properly persist it with the bill, preventing orphan deletion.
 		bill.addLineItem(lineItem);
 		
 		Bill savedBill = billService.saveBill(bill);
