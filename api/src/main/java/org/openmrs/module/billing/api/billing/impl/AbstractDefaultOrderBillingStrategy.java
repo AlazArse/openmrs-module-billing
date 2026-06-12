@@ -139,29 +139,32 @@ public abstract class AbstractDefaultOrderBillingStrategy extends AbstractOrderB
 	}
 
 	protected BillingResult createBill(Patient patient, BillLineItem lineItem, Order order) {
-		//Provider cashier = resolveCashier(order);
-		//if (cashier == null) {
-			//log.error("Cannot resolve cashier for order: {}", order.getUuid());
-			//return BillingResult.skipped("Cannot resolve cashier");
-		//}
+		Provider cashier = resolveCashier(order);
+		if (cashier == null) {
+			log.error("Cannot resolve cashier for order: {}", order.getUuid());
+			return BillingResult.skipped("Cannot resolve cashier");
+		}
 		
-		//CashPoint cashPoint = resolveCashPoint();
-		//if (cashPoint == null) {
-			//log.error("Cannot resolve cash point for order: {}", order.getUuid());
-			//return BillingResult.skipped("Cannot resolve cash point");
-		//}
+		CashPoint cashPoint = resolveCashPoint();
+		if (cashPoint == null) {
+			log.error("Cannot resolve cash point for order: {}", order.getUuid());
+			return BillingResult.skipped("Cannot resolve cash point");
+		}
 		
 		Bill bill = new Bill();
 		bill.setPatient(patient);
 		bill.setStatus(BillStatus.PENDING);
 		bill.setCashier(cashier);
 		bill.setCashPoint(cashPoint);
-		//if (order.getEncounter() != null) {
-			//bill.setVisit(order.getEncounter().getVisit());
-		//}
-	  // Save line item first to ensure it gets an ID
-        lineItem = billLineItemService.saveBillLineItem(lineItem);
-    
+		if (order.getEncounter() != null) {
+			bill.setVisit(order.getEncounter().getVisit());
+		}
+		
+		// Save line item first to ensure it gets a database ID before association with the bill.
+		// This prevents Hibernate from treating the line item as an orphan during cascade operations,
+		// which was causing line items to be randomly cleared/deleted after order placement.
+		lineItem = billLineItemService.saveBillLineItem(lineItem);
+		
 		bill.addLineItem(lineItem);
 		
 		Bill savedBill = billService.saveBill(bill);
