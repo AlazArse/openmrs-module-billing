@@ -57,6 +57,15 @@ public class BillLineItemServiceImpl extends BaseOpenmrsService implements BillL
 	
 	@Override
 	@Transactional
+	public BillLineItem saveBillLineItem(BillLineItem lineItem) {
+		if (lineItem == null) {
+			throw new IllegalArgumentException("lineItem cannot be null");
+		}
+		return billLineItemDAO.saveBillLineItem(lineItem);
+	}
+	
+	@Override
+	@Transactional
 	public void voidBillLineItem(BillLineItem lineItem, String voidReason) {
 		if (StringUtils.isBlank(voidReason)) {
 			throw new IllegalArgumentException("voidReason cannot be null or empty");
