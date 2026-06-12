@@ -14,6 +14,8 @@ concurrency:
 jobs:
   spotless-fix:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # allow pushing commits back
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -34,6 +36,8 @@ jobs:
           git add .
           git commit -m "Apply Spotless formatting" || echo "No changes to commit"
           git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build:
     needs: spotless-fix
