@@ -54,36 +54,36 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Slf4j
 @Setter(onMethod_ = @Autowired)
 public abstract class AbstractDefaultOrderBillingStrategy extends AbstractOrderBillingStrategy {
-
+	
 	protected BillService billService;
-
+	
 	protected BillLineItemService billLineItemService;
-
+	
 	protected CashPointService cashPointService;
-
+	
 	protected BillExemptionService billExemptionService;
-
+	
 	@Qualifier("ruleEngine")
 	protected ExemptionRuleEngine exemptionRuleEngine;
-
+	
 	protected ProgramWorkflowService programWorkflowService;
-
+	
 	protected PlatformTransactionManager transactionManager;
-
+	
 	{
 		setSupportedActions(EnumSet.of(Order.Action.NEW, Order.Action.RENEW, Order.Action.REVISE, Order.Action.DISCONTINUE));
 	}
-
+	
 	@Override
 	protected BillingResult handleNewOrder(Order order) {
 		return createBillIfAbsent(order);
 	}
-
+	
 	@Override
 	protected BillingResult handleRenewOrder(Order order) {
 		return createBillIfAbsent(order);
 	}
-
+	
 	@Override
 	protected BillingResult handleRevisedOrder(Order order) {
 		TransactionTemplate txTemplate = new TransactionTemplate(transactionManager);
@@ -92,29 +92,29 @@ public abstract class AbstractDefaultOrderBillingStrategy extends AbstractOrderB
 			return createBillIfAbsent(order);
 		});
 	}
-
+	
 	@Override
 	protected BillingResult handleDiscontinuedOrder(Order order) {
 		voidPreviousLineItem(order, "Order discontinued");
 		return BillingResult.discontinued();
 	}
-
+	
 	protected void voidPreviousLineItem(Order order, String reason) {
 		Order previousOrder = order.getPreviousOrder();
 		if (previousOrder == null) {
 			log.warn("No previous order found for {} order: {}", order.getAction(), order.getUuid());
 			return;
 		}
-
+		
 		BillLineItem existingLineItem = billLineItemService.getBillLineItemByOrder(previousOrder);
 		if (existingLineItem == null) {
 			log.warn("No bill line item found for previous order: {}", previousOrder.getUuid());
 			return;
 		}
-
+		
 		billLineItemService.voidBillLineItem(existingLineItem, reason);
 	}
-
+	
 	/**
 	 * Create the order-type-specific bill line item. Called by the default bill creation pipeline.
 	 *
@@ -122,35 +122,35 @@ public abstract class AbstractDefaultOrderBillingStrategy extends AbstractOrderB
 	 * @return the line item, or empty if the order should not be billed
 	 */
 	protected abstract Optional<BillLineItem> createBillLineItem(Order order);
-
+	
 	protected BillingResult createBillIfAbsent(Order order) {
 		BillLineItem existingLineItem = billLineItemService.getBillLineItemByOrder(order);
 		if (existingLineItem != null) {
 			log.info("Bill line item already exists for order: {}, skipping duplicate bill creation", order.getUuid());
 			return BillingResult.skipped("Duplicate — bill already exists");
 		}
-
+		
 		Optional<BillLineItem> lineItemOpt = createBillLineItem(order);
 		if (!lineItemOpt.isPresent()) {
 			return BillingResult.skipped("No billable item found for order");
 		}
-
+		
 		return createBill(order.getPatient(), lineItemOpt.get(), order);
 	}
-
+	
 	protected BillingResult createBill(Patient patient, BillLineItem lineItem, Order order) {
 		Provider cashier = resolveCashier(order);
 		if (cashier == null) {
 			log.error("Cannot resolve cashier for order: {}", order.getUuid());
 			return BillingResult.skipped("Cannot resolve cashier");
 		}
-
+		
 		CashPoint cashPoint = resolveCashPoint();
 		if (cashPoint == null) {
 			log.error("Cannot resolve cash point for order: {}", order.getUuid());
 			return BillingResult.skipped("Cannot resolve cash point");
 		}
-
+		
 		Bill bill = new Bill();
 		bill.setPatient(patient);
 		bill.setStatus(BillStatus.PENDING);
@@ -159,19 +159,19 @@ public abstract class AbstractDefaultOrderBillingStrategy extends AbstractOrderB
 		if (order.getEncounter() != null) {
 			bill.setVisit(order.getEncounter().getVisit());
 		}
-
+		
 		// Add the line item to the bill first to establish the relationship.
 		// This ensures Hibernate recognizes the line item as part of the bill aggregate root
 		// and will properly persist it with the bill, preventing orphan deletion.
 		bill.addLineItem(lineItem);
-
+		
 		Bill savedBill = billService.saveBill(bill);
 		return BillingResult.created(savedBill);
 	}
-
+	
 	// resolveCashier() and resolveCashPoint() are inherited from the interface
 	// and must be implemented by concrete strategy classes.
-
+	
 	/**
 	 * Create a bill line item with the common fields populated. Subclasses should set the type-specific
 	 * fields (item or billable service) on the returned line item.
@@ -185,51 +185,51 @@ public abstract class AbstractDefaultOrderBillingStrategy extends AbstractOrderB
 		lineItem.setOrder(order);
 		return lineItem;
 	}
-
+	
 	protected boolean checkIfOrderIsExempted(Order order, ExemptionType exemptionType) {
 		if (order == null || order.getConcept() == null) {
 			return false;
 		}
-
+		
 		List<BillExemption> exemptions = billExemptionService.getExemptionsByConcept(order.getConcept(), exemptionType,
 		    false);
 		if (exemptions == null || exemptions.isEmpty()) {
 			return false;
 		}
-
+		
 		Map<String, Object> variables = buildExemptionVariables(order);
-
+		
 		for (BillExemption exemption : exemptions) {
 			if (exemptionRuleEngine.isExemptionApplicable(exemption, variables)) {
 				return true;
 			}
 		}
-
+		
 		return false;
 	}
-
+	
 	protected Map<String, Object> buildExemptionVariables(Order order) {
 		Map<String, Object> variables = new HashMap<>();
-
+		
 		Patient patient = order.getPatient();
 		variables.put("patient", patient);
 		if (patient != null) {
 			variables.put("patientAge", patient.getAge());
 		}
-
+		
 		Map<String, Object> orderData = new HashMap<>();
 		orderData.put("uuid", order.getUuid());
 		if (order.getConcept() != null) {
 			orderData.put("conceptId", order.getConcept().getConceptId());
 		}
 		variables.put("order", orderData);
-
+		
 		List<PatientProgram> programs = programWorkflowService.getPatientPrograms(patient, null, null, null, new Date(),
 		    null, false);
 		List<String> activePrograms = programs.stream().filter(PatientProgram::getActive)
 		        .map(pp -> pp.getProgram().getName()).collect(Collectors.toList());
 		variables.put("activePrograms", activePrograms);
-
+		
 		return variables;
 	}
 }
