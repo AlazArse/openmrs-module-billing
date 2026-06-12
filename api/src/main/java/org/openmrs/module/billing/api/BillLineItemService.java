@@ -13,6 +13,7 @@ import org.openmrs.Order;
 import org.openmrs.api.OpenmrsService;
 import org.openmrs.module.billing.api.model.BillLineItem;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
 
@@ -43,6 +44,14 @@ public interface BillLineItemService extends OpenmrsService {
 	 */
 	@Nullable
 	BillLineItem getBillLineItemByOrder(Order order);
+	
+	/**
+	 * Saves or updates a bill line item.
+	 *
+	 * @param lineItem the line item to save
+	 * @return the saved line item
+	 */
+	BillLineItem saveBillLineItem(@Nonnull BillLineItem lineItem);
 	
 	/**
 	 * Voids a bill line item. The OpenMRS {@code BaseVoidHandler} AOP handles setting the void metadata
